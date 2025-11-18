@@ -19,63 +19,111 @@
 |-- rtfm_model.py         (Script cho Giai đoạn 3)
 |-- rtfm_loss.py          (Script cho Giai đoạn 3)
 |-- rtfm_dataset.py       (Script cho Giai đoạn 4)
-|-- train_stage_1.py      (Script cho Giai đoạn 4)
-|-- train_stage_2.py      (Script cho Giai đoạn 5)
-|-- evaluate.py           (Script cho Giai đoạn 6)
+|-- train_stage_1.ipynb      (Script cho Giai đoạn 4)
+|-- train_stage_2.ipynb      (Script cho Giai đoạn 5)
+|-- evaluate.ipynb           (Script cho Giai đoạn 6)
 
-- Giai đoạn 1: ⚙️ Trích xuất Đặc trưng (Dự án 1)
+- Giai đoạn 1: Trích xuất Đặc trưng (Dự án 1)
+
 Đây là giai đoạn tiền xử lý, biến video thô thành dữ liệu.
-!!! CODE DEMO không phải CODE THẬT !!!
-extract_features.py:
-Mục tiêu: "Code ra" các tệp đặc trưng .npy (I3D).
+extract_features.py: 
+I3D resnet50 có độ sâu là 2048 kênh (channels)
+Đầu vào (16 frames) 16*224*224*3(màu) = 2,4m => đầu ra 2048 số
+
+Mục tiêu: các tệp đặc trưng .npy (I3D).
 Đầu vào: Các video .mp4 trong thư mục UCF_Crimes_Videos.
 Đầu ra: Các tệp .npy (đặc trưng I3D) được lưu vào thư mục I3D_Features.
-Công việc: Tải mô hình I3D từ pytorchvideo, đọc từng video, cắt thành clip 16-frame, đẩy qua mô hình I3D, và lưu các vector đặc trưng (2048 chiều) vào tệp .npy. Đây là bước nặng và tốn thời gian nhất.
+Công việc: Tải mô hình I3D từ pytorchvideo, đọc từng video, cắt thành clip 16-frame, đẩy qua mô hình I3D, 
+và lưu các vector đặc trưng (2048 chiều) vào tệp .npy. 
 
-- Giai đoạn 2: 🗂️ Chuẩn bị Danh sách
+- Giai đoạn 2: huẩn bị Danh sách
 Giai đoạn này chuẩn bị các tệp "chỉ mục" để huấn luyện và kiểm thử.
 
 create_lists.py:
-Mục tiêu: "Code ra" các tệp rtfm_train.list và rtfm_test.list.
+Mục tiêu: các tệp rtfm_train.list và rtfm_test.list.
 Đầu vào: Các tệp .npy (từ Giai đoạn 1) và các tệp Ground Truth (ví dụ: Anomaly_Train.txt).
 Đầu ra: Hai tệp văn bản (.list) trong thư mục feature_lists.
-Công việc: Nó quét các tệp .npy bạn vừa tạo và đối chiếu với tệp Anomaly_Train.txt để tạo ra một danh sách "tổng" (master list) cho việc huấn luyện, gán nhãn 0 (Normal) hoặc 1 (Anomaly) cho mỗi tệp .npy.
+Công việc: Nó quét các tệp .npy bạn vừa tạo và đối chiếu với tệp Anomaly_Train.txt để tạo ra một danh sách "tổng" (master list) 
+cho việc huấn luyện, gán nhãn 0 (Normal) hoặc 1 (Anomaly) cho mỗi tệp .npy.
 
-- Giai đoạn 3: ✍️ "Code ra" Lõi của RTFM
-Đây là các "thư viện" chứa logic cốt lõi của bài báo RTFM. Chúng không tự chạy mà được các tệp khác import.
+- Giai đoạn 3: Lõi của RTFM
+Đây là các thư viện chứa logic cốt lõi của RTFM. Chúng không tự chạy mà được các tệp khác import.
 
 rtfm_model.py:
 Mục tiêu: Định nghĩa kiến trúc của 2 mô hình mạng.
-Nội dung: Chứa class RTFM_TFM (mô hình chính dùng TConv nn.Conv1d) và class Classifier (mô hình MLP phụ dùng nn.Linear, giống của Sultani).
+Nội dung: Chứa class RTFM_TFM (mô hình chính dùng TConv nn.Conv1d) và class Classifier (mô hình MLP phụ dùng nn.Linear ).
+
+- RTFM_TFM: Convolution 1D => giúp mô hình nhìn thấy mối liên hệ theo thời gian. Thay vì nhìn từng giây riêng lẻ, 
+nó nhìn giây hiện tại kết hợp với giây trước và giây sau nó.
+=> video Bất thường sẽ có độ lớn (magnitude) LỚN, còn video Bình thường có độ lớn NHỎ
+- class Classifier: nén thông tin từ 2048 chiều xuống còn 32 chiều, và cuối cùng là 14 chiều
+Input: [Batch, 32, 2048] => [Batch, 32, 2048] => [Batch, 32, 14]
 
 rtfm_loss.py:
-Mục tiêu: Định nghĩa hàm loss "ma thuật" của RTFM.
+Mục tiêu: Định nghĩa hàm loss của RTFM.
 Nội dung: Chứa hàm rtfm_loss_fn tính toán 3 thành phần: Ranking Loss (đẩy độ lớn normal > abnormal), Sparsity Loss, và Smoothness Loss.
+Sparsity Loss(Thưa thớt):Bắt buộc mô hình chỉ được phép chấm điểm cao cho một số ít đoạn (top k) thực sự quan trọng, 
+các đoạn còn lại phải có điểm thấp
+Smoothness Loss:Smoothness Loss
 
 rtfm_dataset.py:
 Mục tiêu: Định nghĩa cách tải dữ liệu cho PyTorch.
-Nội dung: Chứa class RTFMDataset (để đọc tệp .npy và xử lý 32-snippet) và class BalancedSampler (quan trọng, để đảm bảo mỗi batch huấn luyện Giai đoạn 1 có 50% Normal và 50% Abnormal).
+Nội dung: Chứa class RTFMDataset (để đọc tệp .npy và xử lý 32-snippet) và class BalancedSampler (quan trọng, 
+để đảm bảo mỗi batch huấn luyện Giai đoạn 1 có 50% Normal và 50% Abnormal).
 
-Giai đoạn 4-6: 🏋️🏁 Huấn luyện và Đánh giá (Dự án 2)
+Giai đoạn 4-6: Huấn luyện và Đánh giá (Dự án 2)
 Đây là các kịch bản (scripts) chính mà bạn sẽ chạy để huấn luyện và kiểm thử.
 
 train_stage_1.py:
 Mục tiêu: Kịch bản huấn luyện Giai đoạn 1 (huấn luyện TFM).
 Cách chạy: python train_stage_1.py.
-Công việc: Tải RTFM_TFM (từ rtfm_model.py), rtfm_loss_fn (từ rtfm_loss.py) và BalancedSampler (từ rtfm_dataset.py). Nó huấn luyện mô hình TFM và lưu checkpoint rtfm_tfm_model.pth.
+Công việc: Tải RTFM_TFM (từ rtfm_model.py), rtfm_loss_fn (từ rtfm_loss.py) và BalancedSampler (từ rtfm_dataset.py). 
+Nó huấn luyện mô hình TFM và lưu checkpoint rtfm_tfm_model.pth.
 
 train_stage_2.py:
 Mục tiêu: Kịch bản huấn luyện Giai đoạn 2 (huấn luyện Classifier).
 Cách chạy: python train_stage_2.py.
-Công việc: Tải checkpoint rtfm_tfm_model.pth (và đóng băng nó), tải Classifier (từ rtfm_model.py). Nó dùng BCELoss thông thường để huấn luyện chỉ Classifier. Kết quả là checkpoint rtfm_classifier_model.pth.
+Công việc: Tải checkpoint rtfm_tfm_model.pth (và đóng băng nó), tải Classifier (từ rtfm_model.py). 
+Kết quả là checkpoint rtfm_classifier_model.pth.
 
 evaluate.ipynb:
 Mục tiêu: Kịch bản cuối cùng để đánh giá PBL của bạn.
-Công việc: Tải cả hai checkpoint (.pth). Chạy tất cả video test qua cả hai mô hình. So sánh kết quả dự đoán (đã upsample) với Temporal_Anomaly_Annotation.txt và in ra điểm ROC AUC cuối cùng.
-
+Công việc: Tải cả hai checkpoint (.pth). Chạy tất cả video test qua cả hai mô hình. So sánh kết quả dự đoán (đã upsample) 
+với Temporal_Anomaly_Annotation.txt và in ra điểm ROC AUC cuối cùng.
+TPR (True Positive Rate) - Tỷ lệ phát hiện đúng
+FPR (False Positive Rate) - Tỷ lệ báo động giả
 I. tao moi truong
     python -m venv venv
     .\venv\Scripts\activate
     pip install torch torchvision
     pip install numpy opencv-python scikit-learn matplotlib
     pip install pytorchvideo
+
+3. Khối Huấn luyện (Training)
+Chúng ta chia việc học thành 2 giai đoạn để tối ưu hóa.
+
+Giai đoạn 1 (train_stage_1): Học phân biệt Thật/Giả
+Mục tiêu: Chỉ train RTFM_TFM. Dạy cho model biết: "Video có đánh nhau thì tín hiệu phải mạnh 
+hơn video bình thường".
+Hàm Loss: Ranking Loss. Nó không quan tâm đó là hành vi gì, chỉ cần biết là 
+Bất thường > Bình thường.
+Kết quả: Model học được cách trích xuất đặc trưng "mạnh" (robust features).
+
+Giai đoạn 2 (train_stage_2): Học phân loại chi tiết
+
+Mục tiêu: Đóng băng RTFM_TFM (không train nữa), chỉ train Classifier.
+Hàm Loss: CrossEntropy Loss. Dạy cho model biết: "Tín hiệu mạnh này là của hành vi Cướp (Robbery) 
+chứ không phải Đánh nhau (Fighting)".
+
+Kết quả: Model có khả năng định danh chính xác hành vi (Multi-class).
+
+4. Khối Trích xuất Đặc trưng (Feature Extraction)
+
+Model nền: I3D ResNet-50. Đây là một mạng nơ-ron 3D khổng lồ do Facebook/Google phát triển, đã được học trước trên hàng triệu video.
+Nhiệm vụ: Nhìn vào 16 khung hình (frames) liên tiếp và tóm tắt nội dung của chúng thành 1 vector gồm 2048 con số.
+
+File: evaluate.ipynb
+
+
+Nó so sánh kết quả dự đoán của máy với đáp án chuẩn (Ground Truth).
+Chỉ số AUC 60% cho biết độ chính xác tổng thể.
